@@ -1,12 +1,10 @@
-import java.util.ArrayList;
-
 public class REcompile {
 
     private static final char[] regexSpecs = { '.', '*', '?', '|', '(', ')', '\\' };
 
-    private static ArrayList<String> ch; // expected char (NULL if branch state only)
-    private static ArrayList<Integer> next1; // possible next state numbers
-    private static ArrayList<Integer> next2; // possible next state numbers
+    private static String[] ch; // expected char (NULL if branch state only)
+    private static int[] next1; // possible next state numbers
+    private static int[] next2; // possible next state numbers
 
     private static String p; // the regular expression
     private static int j = 0; // the pointer or index for char being examined
@@ -25,23 +23,11 @@ public class REcompile {
         if (leftBrackets != rightBrackets)
             error();
 
-        ch = new ArrayList<String>(p.length()); // expected char (NULL if branch state only)
-        next1 = new ArrayList<Integer>(p.length()); // possible next state numbers
-        next2 = new ArrayList<Integer>(p.length()); // possible next state numbers
-
-        System.out.println(ch.size() + " " + p.length());
+        ch = new String[p.length()]; // expected char (NULL if branch state only)
+        next1 = new int[p.length()]; // possible next state numbers
+        next2 = new int[p.length()]; // possible next state numbers
 
         parse();
-        // setState(state, " ", -1, -1);
-        printStates();
-    }
-
-    /**
-     * Writes all states to standard output
-     */
-    private static void printStates() {
-        for (int i = 0; i < ch.size(); i++)
-            System.out.println(i + ", " + ch.get(i) + ", " + next1.get(i) + ", " + next2.get(i));
     }
 
     /**
@@ -69,16 +55,11 @@ public class REcompile {
      */
     public static void setState(int s, String c, int n1, int n2) {
 
-        System.out.println(s + ", " + c + ", " + n1 + ", " + n2);
+        System.out.println(s + " | " + c + " " + n1 + " " + n2);
 
-        ch.add(s, c);
-        next1.add(s, n1);
-        next2.add(s, n2);
-        // if (s >= ch.size()) {
-        // } else {
-        // next1.set(s, n1);
-        // next2.set(s, n2);
-        // }
+        ch[s] = c;
+        next1[s] = n1;
+        next2[s] = n2;
     }
 
     /**
@@ -162,14 +143,12 @@ public class REcompile {
             state++;
         }
 
-        if (p.charAt(j) == '+') { // T -> F+T
-
-            if (next1.get(f) == next2.get(f)) {
-                next2.set(f, state);
+        if (p.charAt(j) == '+') { // T -> F + T
+            if (next1[f] == next2[f]) {
+                next2[f] = state;
             }
 
-            next1.set(f, state);
-
+            next1[f] = state;
             f = state - 1;
             j++;
             r = state;
@@ -178,11 +157,11 @@ public class REcompile {
             t2 = term();
             setState(r, " ", t1, t2);
 
-            if (next1.get(f) == next2.get(f)) {
-                next2.set(f, state);
-            }
+            if (next1[f] == next2[f]) {
+                next2[f] = state;
 
-            next1.set(f, state);
+            }
+            next1[f] = state;
         }
 
         return r;
