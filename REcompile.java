@@ -2,9 +2,11 @@ import java.util.ArrayList;
 
 public class REcompile {
 
-    private static ArrayList<String> ch = new ArrayList<String>(); // expected char (NULL if branch state only)
-    private static ArrayList<Integer> next1 = new ArrayList<Integer>(); // possible next state numbers
-    private static ArrayList<Integer> next2 = new ArrayList<Integer>(); // possible next state numbers
+    private static final char[] regexSpecs = { '.', '*', '?', '|', '(', ')', '\\' };
+
+    private static ArrayList<String> ch; // expected char (NULL if branch state only)
+    private static ArrayList<Integer> next1; // possible next state numbers
+    private static ArrayList<Integer> next2; // possible next state numbers
 
     private static String p; // the regular expression
     private static int j = 0; // the pointer or index for char being examined
@@ -14,9 +16,7 @@ public class REcompile {
         if (args.length != 1)
             error();
 
-        p = args[0].replaceAll("\"", "");
-
-        System.out.println(p);
+        p = args[0];
 
         // check that the regex has both brackets
         long leftBrackets = p.chars().filter(x -> x == '(').count();
@@ -24,6 +24,12 @@ public class REcompile {
 
         if (leftBrackets != rightBrackets)
             error();
+
+        ch = new ArrayList<String>(p.length()); // expected char (NULL if branch state only)
+        next1 = new ArrayList<Integer>(p.length()); // possible next state numbers
+        next2 = new ArrayList<Integer>(p.length()); // possible next state numbers
+
+        System.out.println(ch.size() + " " + p.length());
 
         parse();
         // setState(state, " ", -1, -1);
@@ -38,8 +44,14 @@ public class REcompile {
             System.out.println(i + ", " + ch.get(i) + ", " + next1.get(i) + ", " + next2.get(i));
     }
 
+    /**
+     * Checks if a character is either part of the regular expression
+     * specifications or a literal/terminal.
+     * 
+     * @param c The character currently read from the regexp
+     * @return True if a literal
+     */
     public static boolean isVocab(char c) {
-        char[] regexSpecs = { '.', '*', '+', '?', '|', '(', ')', '\\', '[', ']' };
 
         for (char symbol : regexSpecs)
             if (symbol == c)
@@ -57,14 +69,16 @@ public class REcompile {
      */
     public static void setState(int s, String c, int n1, int n2) {
 
-        if (s >= ch.size()) {
-            ch.add(s, c);
-            next1.add(s, n1);
-            next2.add(s, n2);
-        } else {
-            next1.set(s, n1);
-            next2.set(s, n2);
-        }
+        System.out.println(s + ", " + c + ", " + n1 + ", " + n2);
+
+        ch.add(s, c);
+        next1.add(s, n1);
+        next2.add(s, n2);
+        // if (s >= ch.size()) {
+        // } else {
+        // next1.set(s, n1);
+        // next2.set(s, n2);
+        // }
     }
 
     /**
@@ -103,7 +117,10 @@ public class REcompile {
     public static int expression() {
         int r = term(); // E -> T
 
-        if (isVocab(p.charAt(j)) || p.charAt(j) == '[') { // E -> TE
+        if (j >= p.length())
+            return r;
+
+        if (isVocab(p.charAt(j)) || p.charAt(j) == '(') { // E -> TE
             expression();
         }
 
@@ -113,6 +130,7 @@ public class REcompile {
     /**
      * Phrase Structure:
      * T -> F
+     * T -> F?
      * T -> F*
      * T -> F+T
      * 
@@ -124,6 +142,12 @@ public class REcompile {
         f = state - 1;
         r = t1 = factor(); // T -> F
 
+        if (r == -1) // at the end of the regex
+            return r;
+
+        if (j >= p.length())
+            return r;
+
         if (p.charAt(j) == '*') { // T -> F*
             setState(state, " ", state + 1, t1);
             j++;
@@ -131,7 +155,15 @@ public class REcompile {
             state++;
         }
 
+        if (p.charAt(j) == '?') { // T -> F?
+            setState(state - 1, " ", state, state + 1);
+            setState(state, " ", state + 1, state + 1);
+            j++;
+            state++;
+        }
+
         if (p.charAt(j) == '+') { // T -> F+T
+
             if (next1.get(f) == next2.get(f)) {
                 next2.set(f, state);
             }
@@ -142,8 +174,8 @@ public class REcompile {
             j++;
             r = state;
             state++;
-            t2 = term();
 
+            t2 = term();
             setState(r, " ", t1, t2);
 
             if (next1.get(f) == next2.get(f)) {
@@ -168,41 +200,44 @@ public class REcompile {
      */
     public static int factor() {
         int r = 0;
+        String v;
 
-        if (p.charAt(j) == '\\') { // F -> \v
-            j++;
-
-            String v = Character.toString(p.charAt(j));
-
-            setState(state, v, state + 1, state + 1);
-
-            j++;
-            r = state;
-            state++;
-        }
+        if (j >= p.length()) // ensure we are not at the end of the regexp
+            return -1;
 
         if (isVocab(p.charAt(j))) { // F -> v
 
-            String v = Character.toString(p.charAt(j));
+            v = Character.toString(p.charAt(j));
 
             setState(state, v, state + 1, state + 1);
 
             j++;
             r = state;
             state++;
-        } else if (p.charAt(j) == '.') {
+        } else if (p.charAt(j) == '.') { // F-> .
 
             setState(state, "..", state + 1, state + 1);
 
             j++;
             r = state;
             state++;
-        } else {
-            if (p.charAt(j) == '[') { // F-> [E]
+        } else if (p.charAt(j) == '\\') { // F -> \v
+
+            j++;
+
+            v = Character.toString(p.charAt(j));
+
+            setState(state, v, state + 1, state + 1);
+
+            j++;
+            r = state;
+            state++;
+        } else { // apply precendence
+            if (p.charAt(j) == '(') { // F-> [E]
                 j++;
                 r = expression();
 
-                if (p.charAt(j) == ']') {
+                if (p.charAt(j) == ')') {
                     j++;
                 } else {
                     error();
